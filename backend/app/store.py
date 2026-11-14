@@ -4,22 +4,36 @@
 """
 from __future__ import annotations
 
+import copy
+import threading
 from typing import Any
 
 from app.seed import SEED_ROWS
 
 
+def clone_seed_tables() -> dict[str, list[dict[str, Any]]]:
+    """示例数据里有嵌套的字段清单快照，复制时必须深拷贝，不能共享子列表。"""
+    return {
+        name: [copy.deepcopy(row) for row in rows] for name, rows in SEED_ROWS.items()
+    }
+
+
 class Store:
     def __init__(self) -> None:
-        self._tables: dict[str, list[dict[str, Any]]] = {
-            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
-        }
+        self._tables: dict[str, list[dict[str, Any]]] = clone_seed_tables()
+        # 内存仓库被多个请求线程共享；字段清单的“校验-读取版本-写入”需要在同一把锁里完成。
+        self.lock = threading.RLock()
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
+
+    def reset(self) -> None:
+        """重新载入示例数据；测试或演示需要回到初始状态时使用。"""
+        with self.lock:
+            self._tables = clone_seed_tables()
 
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):

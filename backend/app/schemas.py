@@ -19,6 +19,9 @@ class ActionResult(BaseModel):
     ok: bool
     message: str
     entry: dict[str, Any] | None = None
+    errors: list[str] = Field(default_factory=list)
+    conflict: dict[str, Any] | None = None
+    affected: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class EntryPayload(BaseModel):
